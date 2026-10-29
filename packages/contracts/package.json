@@ -1,0 +1,29 @@
+{
+  "name": "contracts",
+  "root": "packages/contracts",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "command": "forge build --root packages/contracts",
+      "options": {
+        "cwd": "."
+      },
+      "outputs": [
+        "{projectRoot}/out"
+      ]
+    },
+    "test": {
+      "command": "forge test --root packages/contracts",
+      "options": {
+        "cwd": "."
+      },
+      "cache": false
+    },
+    "lint": {
+      "command": "forge fmt --check --root packages/contracts",
+      "options": {
+        "cwd": "."
+      }
+    }
+  }
+}
