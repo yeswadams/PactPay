@@ -6,3 +6,6 @@ dist/
 .next/
 .nx/
 .vscode
+.freebuff/*
+.freebuff
+
