@@ -1,5 +1,7 @@
 # PactPay
 
+**Current integrated demo:** see [DEMO.md](DEMO.md) for wallet-first sign-in, the running local application, and the short presentation sequence. See [Sepolia keystore + Etherscan deployment](docs/deployment/sepolia-keystore-and-etherscan.md) for your existing Foundry account. Older bearer-token setup sections below describe the earlier protocol scaffold and are superseded by this demo guide.
+
 PactPay is a local/testnet invoice-financing prototype for Kenyan SMEs. It connects
 human invoice verification, multi-investor mock-token funding, SME disbursement,
 reconciled repayment and proportional investor claims using real EVM transactions.

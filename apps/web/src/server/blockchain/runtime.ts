@@ -37,3 +37,11 @@ export async function network() {
     config.explorerUrl = new URL(process.env.EXPLORER_URL).origin;
   return { config, client: protocolClient(config) };
 }
+export async function browserNetwork() {
+  const { config } = await network();
+  const rpcUrl =
+    process.env.NEXT_PUBLIC_RPC_URL ??
+    (config.deployment.chainId === 31337 ? "http://127.0.0.1:8545" : undefined);
+  if (!rpcUrl) throw new Error("Configure a browser-safe public RPC URL");
+  return { ...config, rpcUrl };
+}

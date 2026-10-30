@@ -1,22 +1,28 @@
 import { spawn, spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 const check = process.argv.includes("--check");
 const env = {
   ...process.env,
   DATABASE_URL:
-    process.env.DATABASE_URL ??
-    "postgresql://pactpay:pactpay_dev@127.0.0.1:5432/pactpay",
+    process.env.DEMO_DATABASE_URL ??
+    "postgresql://pactpay:pactpay_dev@127.0.0.1:5432/pactpay_integration",
   RPC_URL: "http://127.0.0.1:8545",
   CHAIN_ID: "31337",
   NEXT_PUBLIC_RPC_URL: "http://127.0.0.1:8545",
   BLOCK_CONFIRMATIONS: "1",
+  PACTPAY_NEXT_DIST_DIR: ".next-demo",
   NX_DAEMON: "false",
   NX_ISOLATE_PLUGINS: "false",
 };
-for (const role of ["SME", "VERIFIER", "LISTER", "SETTLER", "SYNC"])
-  env[`${role}_API_TOKEN`] = randomBytes(32).toString("hex");
+env.APP_ORIGIN = `http://127.0.0.1:${process.env.DEMO_WEB_PORT ?? "3001"}`;
+env.S3_ENDPOINT = "http://127.0.0.1:9000";
+env.S3_BUCKET = "pactpay-private-demo";
+env.S3_ACCESS_KEY_ID = "pactpay_local";
+env.S3_SECRET_ACCESS_KEY = "pactpay_local_storage_only";
+env.S3_REGION = "us-east-1";
+env.ALLOW_LOCAL_STORAGE_BOOTSTRAP = "true";
+delete env.PACTPAY_DEPLOYMENT_FILE;
 const children = [];
 function cleanup() {
   for (const child of children) child.kill("SIGTERM");
@@ -84,8 +90,10 @@ try {
   await waitFor(env.RPC_URL, true);
   run("forge", ["build", "--root", "packages/contracts"]);
   run("node", ["packages/blockchain/scripts/generate.mjs"]);
+  run("node", ["packages/database/src/ensure-demo.ts"]);
   run("node", ["packages/database/src/migrate.ts"]);
   run("node", ["packages/blockchain/scripts/deploy-local.ts"]);
+  run("node", ["apps/web/scripts/provision-local.ts"]);
   if (!check)
     await writeFile(
       ".env.demo.local",
@@ -98,6 +106,7 @@ try {
               "CHAIN_ID",
               "NEXT_PUBLIC_RPC_URL",
               "BLOCK_CONFIRMATIONS",
+              "APP_ORIGIN", "S3_ENDPOINT", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "S3_REGION", "ALLOW_LOCAL_STORAGE_BOOTSTRAP",
             ].includes(key) || key.endsWith("_API_TOKEN"),
         )
         .map(([key, value]) => `${key}=${value}`)
@@ -128,7 +137,7 @@ try {
       `Demo complete. Dashboard: ${env.DEMO_WEB_URL}. Ctrl+C stops child services. PostgreSQL remains in Docker.`,
     );
     console.log(
-      "Generated local role credentials are in .env.demo.local (mode 0600). Use them only with this local demo.",
+      "Local demo configuration is in .env.demo.local. Sign in with the documented Anvil wallets; no bearer role credentials are used.",
     );
     await new Promise((resolve) => next.on("exit", resolve));
   }

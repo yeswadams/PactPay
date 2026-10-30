@@ -11,7 +11,8 @@ export const POST = handler(
     let investorWallet: string | undefined;
     try {
       const body = await request.json();
-      if (typeof body?.investorWallet === "string") investorWallet = body.investorWallet;
+      if (typeof body?.investorWallet === "string")
+        investorWallet = body.investorWallet;
     } catch {
       // no body sent — fine
     }

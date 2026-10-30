@@ -3,7 +3,10 @@ import { User, requireUser } from "@/server/auth";
 import { getDocument } from "@/server/services/invoices";
 
 export const GET = handler(
-  async (_request: Request, { params }: { params: Promise<{ id: string; docId: string }> }) => {
+  async (
+    _request: Request,
+    { params }: { params: Promise<{ id: string; docId: string }> },
+  ) => {
     const user: User = await requireUser();
     const { id, docId } = await params;
 

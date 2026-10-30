@@ -1,0 +1,14 @@
+import type { Meta,StoryObj } from "@storybook/react-vite";
+import { Button } from "./button";
+import { EmptyState,LoadingState,ErrorState } from "./states";
+import { StatusBadge } from "./status";
+import { Metric } from "./page-header";
+const meta={title:"PactPay/Application states",component:Button,tags:["autodocs"]} satisfies Meta<typeof Button>;
+export default meta;type Story=StoryObj<typeof meta>;
+export const Default:Story={render:()=> <div className="row"><Button>Submit invoice</Button><Button variant="secondary">Review terms</Button><StatusBadge status="confirmed"/></div>};
+export const Loading:Story={render:()=> <section className="panel"><LoadingState/></section>};
+export const Empty:Story={render:()=> <section className="panel"><EmptyState title="No invoices yet" description="Submit a sample invoice to request financing." action={<Button>Submit invoice</Button>}/></section>};
+export const Error:Story={render:()=> <ErrorState message="The network is temporarily unavailable." retry={()=>undefined}/>};
+export const Disabled:Story={render:()=> <Button disabled>Awaiting verification</Button>};
+export const FinancialMetric:Story={render:()=> <div style={{maxWidth:300}}><Metric label="Sample invoice value" value="KES 500,000.00" detail="Storybook example, not platform data"/></div>};
+export const Mobile:Story={render:()=> <div style={{maxWidth:360}} className="stack"><Metric label="Sample contributions" value="MOCK 450" detail="Explicit component example"/><EmptyState description="No available claims in this example."/><Button>Review opportunity</Button></div>};

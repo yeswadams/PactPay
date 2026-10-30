@@ -4,12 +4,23 @@ import { schema } from "@pactpay/database";
 import { db } from "@/server/db";
 import { handler, ok, ApiError } from "@/server/http";
 import { requireUser } from "@/server/auth";
-import { getAccessibleInvoice, uploadDocument } from "@/server/services/invoices";
+import {
+  getAccessibleInvoice,
+  uploadDocument,
+} from "@/server/services/invoices";
 
-const kindSchema = z.enum(["purchase_order", "contract", "delivery_record", "other"]);
+const kindSchema = z.enum([
+  "purchase_order",
+  "contract",
+  "delivery_record",
+  "other",
+]);
 
 export const GET = handler(
-  async (_request: Request, { params }: { params: Promise<{ id: string }> }) => {
+  async (
+    _request: Request,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
     const user = await requireUser();
     const { id } = await params;
     const { invoice } = await getAccessibleInvoice(user, id);
@@ -43,11 +54,17 @@ export const POST = handler(
       throw new ApiError(400, `Unknown document kind "${kindRaw}"`);
     }
     const file = form.get("file");
-    if (!(file instanceof File)) throw new ApiError(400, "Attach a file under the 'file' field");
+    if (!(file instanceof File))
+      throw new ApiError(400, "Attach a file under the 'file' field");
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const document = await uploadDocument(
-      { name: file.name, mimeType: file.type || "application/octet-stream", sizeBytes: buffer.byteLength, content: buffer },
+      {
+        name: file.name,
+        mimeType: file.type || "application/octet-stream",
+        sizeBytes: buffer.byteLength,
+        content: buffer,
+      },
       { invoiceId: id, kind: kindParsed.data, actor: user },
     );
 

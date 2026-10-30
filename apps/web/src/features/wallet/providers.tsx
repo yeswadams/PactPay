@@ -1,57 +1,45 @@
 "use client";
-import { useState } from "react";
-import {
-  QueryClient,
-  QueryClientProvider,
-  useQuery,
-} from "@tanstack/react-query";
+import { createContext, useContext, useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createConfig, http, WagmiProvider } from "wagmi";
 import { injected } from "wagmi/connectors";
+import { anvil } from "viem/chains";
 import { configuredChain, type NetworkConfig } from "@pactpay/blockchain";
-import { api } from "./api";
-import { FinancingWorkspace } from "../invoice-financing/workspace";
-
-function Connected({ network }: { network: NetworkConfig }) {
-  const [config] = useState(() =>
-    createConfig({
-      chains: [configuredChain(network)],
+const NetworkContext = createContext<NetworkConfig | null>(null);
+export const useNetwork = () => useContext(NetworkContext);
+export function ApplicationProviders({
+  network,
+  children,
+}: {
+  network: NetworkConfig | null;
+  children: React.ReactNode;
+}) {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: { staleTime: 15000, retry: 1, refetchOnWindowFocus: true },
+        },
+      }),
+  );
+  const [config] = useState(() => {
+    const chain = network ? configuredChain(network) : anvil;
+    return createConfig({
+      chains: [chain],
       connectors: [injected()],
-      transports: { [network.deployment.chainId]: http(network.rpcUrl) },
+      transports: {
+        [chain.id]: http(network?.rpcUrl ?? "http://127.0.0.1:8545"),
+      },
       ssr: true,
-    }),
-  );
-  return (
-    <WagmiProvider config={config}>
-      <FinancingWorkspace network={network} />
-    </WagmiProvider>
-  );
-}
-function Bootstrap() {
-  const config = useQuery({
-    queryKey: ["network"],
-    queryFn: () => api<NetworkConfig>("blockchain/config"),
-    retry: false,
+    });
   });
-  if (config.isPending) return <p role="status">Checking deployment…</p>;
-  if (config.error)
-    return (
-      <section className="panel">
-        <h2>Local protocol setup required</h2>
-        <p>{config.error.message}</p>
-        <p>
-          Start Anvil and PostgreSQL, run <code>pnpm db:migrate</code>,{" "}
-          <code>pnpm web3:deploy</code> and <code>pnpm web3:demo</code>.
-        </p>
-        <button onClick={() => config.refetch()}>Check again</button>
-      </section>
-    );
-  return <Connected network={config.data} />;
-}
-export function Web3App() {
-  const [queryClient] = useState(() => new QueryClient());
   return (
     <QueryClientProvider client={queryClient}>
-      <Bootstrap />
+      <WagmiProvider config={config}>
+        <NetworkContext.Provider value={network}>
+          {children}
+        </NetworkContext.Provider>
+      </WagmiProvider>
     </QueryClientProvider>
   );
 }

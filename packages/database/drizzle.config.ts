@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 config({
   path: resolve(dirname(fileURLToPath(import.meta.url)), "../../apps/web/.env"),
-  override: true,
+  override: false,
 });
 
 const databaseUrl = process.env.DATABASE_URL;

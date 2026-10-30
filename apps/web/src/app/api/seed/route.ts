@@ -1,7 +1,6 @@
-import { handler, ok } from "@/server/http";
-import { seedDemoData } from "@/server/services/seed";
-
-export const POST = handler(async () => {
-  const result = await seedDemoData();
-  return ok(result);
-});
+export async function POST() {
+  return Response.json(
+    { error: "Use the local-only demo command to provision fixtures" },
+    { status: 410 },
+  );
+}

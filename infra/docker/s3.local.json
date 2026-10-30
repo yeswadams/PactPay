@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "pactpay-local-demo",
+      "credentials": [
+        {
+          "accessKey": "pactpay_local",
+          "secretKey": "pactpay_local_storage_only"
+        }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

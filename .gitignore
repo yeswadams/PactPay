@@ -18,3 +18,8 @@ packages/blockchain/deployments/
 coverage/
 .env.*
 !.env.example
+
+apps/web/storybook-static/
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/.next-demo/

@@ -10,6 +10,7 @@ import {
   settleInvoice,
   uploadDocument,
 } from "@/server/services/invoices";
+import { parseAmount } from "@/lib/domain";
 import { seedDemoData } from "@/server/services/seed";
 import {
   createInvoiceSchema,
@@ -19,24 +20,38 @@ import {
   reviewSchema,
   settleSchema,
 } from "@/server/validation";
-export type ActionError = { error: string; issues?: { path: string; message: string }[] };
-export type ActionResult<T> = ({ ok: true } & T) | ({ ok: false } & ActionError);
+export type ActionError = {
+  error: string;
+  issues?: { path: string; message: string }[];
+};
+export type ActionResult<T> =
+  ({ ok: true } & T) | ({ ok: false } & ActionError);
 
-function toError(error: unknown): { ok: false; error: string; issues?: ActionError["issues"] } {
+function toError(error: unknown): {
+  ok: false;
+  error: string;
+  issues?: ActionError["issues"];
+} {
   if (error instanceof ApiError) {
     return { ok: false, error: error.message, issues: error.issues };
   }
-  console.error("[action] unexpected error", error);
+  console.error("[action] unexpected error", error instanceof Error ? error.name : "Unknown");
   return { ok: false, error: "Something went wrong — please try again" };
 }
 
 // ---- Auth -------------------------------------------------------------------
 
-export async function registerAction(input: unknown): Promise<ActionResult<{ user: unknown }>> {
+export async function registerAction(
+  input: unknown,
+): Promise<ActionResult<{ user: unknown }>> {
   try {
     const parsed = registerSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: "Please check the form", issues: normalizeIssues(parsed.error) };
+      return {
+        ok: false,
+        error: "Please check the form",
+        issues: normalizeIssues(parsed.error),
+      };
     }
     const user = await register(parsed.data);
     return { ok: true, user };
@@ -45,11 +60,17 @@ export async function registerAction(input: unknown): Promise<ActionResult<{ use
   }
 }
 
-export async function loginAction(input: unknown): Promise<ActionResult<{ user: unknown }>> {
+export async function loginAction(
+  input: unknown,
+): Promise<ActionResult<{ user: unknown }>> {
   try {
     const parsed = loginSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: "Please check the form", issues: normalizeIssues(parsed.error) };
+      return {
+        ok: false,
+        error: "Please check the form",
+        issues: normalizeIssues(parsed.error),
+      };
     }
     const user = await login(parsed.data);
     return { ok: true, user };
@@ -58,7 +79,9 @@ export async function loginAction(input: unknown): Promise<ActionResult<{ user: 
   }
 }
 
-export async function logoutAction(): Promise<ActionResult<{ signedOut: boolean }>> {
+export async function logoutAction(): Promise<
+  ActionResult<{ signedOut: boolean }>
+> {
   try {
     await clearSession();
     return { ok: true, signedOut: true };
@@ -68,8 +91,13 @@ export async function logoutAction(): Promise<ActionResult<{ signedOut: boolean 
 }
 
 /** One-click demo seed for judges; idempotent. */
-export async function seedDemoAction(): Promise<ActionResult<{ message: string }>> {
+export async function seedDemoAction(): Promise<
+  ActionResult<{ message: string }>
+> {
   try {
+    await requireUser("reviewer");
+    if (process.env.ENABLE_LEGACY_DEMO_SEED !== "true")
+      throw new ApiError(410, "Use the local-only demo command");
     const result = await seedDemoData();
     return { ok: true, message: result.message };
   } catch (error) {
@@ -78,7 +106,15 @@ export async function seedDemoAction(): Promise<ActionResult<{ message: string }
 }
 
 export async function meAction() {
-  return getCurrentUser();
+  const user = await getCurrentUser();
+  return user
+    ? {
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        walletAddress: user.walletAddress,
+      }
+    : null;
 }
 
 // ---- Invoices -----------------------------------------------------------------
@@ -96,23 +132,28 @@ export async function submitInvoiceAction(
       customerEmail: String(formData.get("customerEmail") ?? ""),
       customerContact: String(formData.get("customerContact") ?? ""),
       description: String(formData.get("description") ?? ""),
-      faceValueCents: Math.round(Number(formData.get("faceValue") ?? 0) * 100),
-      advanceCents: Math.round(Number(formData.get("advance") ?? 0) * 100),
+      faceValueCents: Number(parseAmount(String(formData.get("faceValue") ?? ""), 2)),
+      advanceCents: Number(parseAmount(String(formData.get("advance") ?? ""), 2)),
       dueDate: String(formData.get("dueDate") ?? ""),
     };
     const parsed = createInvoiceSchema.safeParse(raw);
     if (!parsed.success) {
-      return { ok: false, error: "Please check the invoice form", issues: normalizeIssues(parsed.error) };
+      return {
+        ok: false,
+        error: "Please check the invoice form",
+        issues: normalizeIssues(parsed.error),
+      };
     }
     const invoice = await createInvoice(user, parsed.data);
 
     let documentsUploaded = 0;
     for (const [field, value] of formData.entries()) {
       if (!(value instanceof File) || value.size === 0) continue;
-      const kindParsed = documentKindSchema.safeParse(String(formData.get(`kind-${field}`) ?? "other"));
-      const kind: "purchase_order" | "contract" | "delivery_record" | "other" = kindParsed.success
-        ? kindParsed.data
-        : "other";
+      const kindParsed = documentKindSchema.safeParse(
+        String(formData.get(`kind-${field}`) ?? "other"),
+      );
+      const kind: "purchase_order" | "contract" | "delivery_record" | "other" =
+        kindParsed.success ? kindParsed.data : "other";
       await uploadDocument(
         {
           name: value.name,
@@ -131,7 +172,6 @@ export async function submitInvoiceAction(
   }
 }
 
-
 export async function reviewInvoiceAction(
   invoiceId: string,
   input: unknown,
@@ -140,7 +180,11 @@ export async function reviewInvoiceAction(
     const user = await requireUser("reviewer");
     const parsed = reviewSchema.safeParse(input);
     if (!parsed.success) {
-      return { ok: false, error: "Please choose a decision", issues: normalizeIssues(parsed.error) };
+      return {
+        ok: false,
+        error: "Please choose a decision",
+        issues: normalizeIssues(parsed.error),
+      };
     }
     await decideInvoice(user, invoiceId, parsed.data);
     return { ok: true, invoiceId };
@@ -169,7 +213,11 @@ export async function settleInvoiceAction(
     const user = await requireUser("sme");
     const parsed = settleSchema.safeParse(input ?? {});
     if (!parsed.success) {
-      return { ok: false, error: "Check the settlement details", issues: normalizeIssues(parsed.error) };
+      return {
+        ok: false,
+        error: "Check the settlement details",
+        issues: normalizeIssues(parsed.error),
+      };
     }
     await settleInvoice(user, invoiceId, parsed.data);
     return { ok: true, invoiceId };

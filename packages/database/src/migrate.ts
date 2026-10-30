@@ -1,31 +1,22 @@
-import { config } from "dotenv";
-import postgres from "postgres";
-import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
-
-config({
-  path: resolve(dirname(fileURLToPath(import.meta.url)), "../../../apps/web/.env"),
-  override: true,
-});
-
-async function main() {
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error("DATABASE_URL must be set in apps/web/.env or the environment");
+import { connectDatabase } from "./index.ts";
+const { db, sql } = connectDatabase();
+try {
+  const columns =
+    await sql`select column_name from information_schema.columns where table_schema = 'public' and table_name = 'users'`;
+  if (
+    columns.some((c) => c.column_name === "external_id") &&
+    !columns.some((c) => c.column_name === "email")
+  ) {
+    throw new Error(
+      "Legacy Web3-only database detected and preserved. Use the integration demo database, or follow docs/architecture/application-migrations.md before migrating existing data.",
+    );
   }
-  const sql = postgres(url, { max: 1 });
-  const migrationsFolder = resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    "../migrations",
-  );
-  await migrate(drizzle(sql), { migrationsFolder });
-  console.log("Migrations applied to", url.replace(/:[^:@/]+@/, ":***@"));
+  await migrate(db, {
+    migrationsFolder: fileURLToPath(new URL("../migrations/", import.meta.url)),
+  });
+  console.log("Database migrations complete");
+} finally {
   await sql.end();
 }
-
-main().catch((error) => {
-  console.error("Migration failed:", error);
-  process.exit(1);
-});

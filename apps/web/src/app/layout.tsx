@@ -1,10 +1,23 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
+import { ApplicationProviders } from "@/features/wallet/providers";
+import { browserNetwork } from "@/server/blockchain/runtime";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "PactPay | Invoice financing demo",
+  title: { default: "PactPay | Invoice financing", template: "%s | PactPay" },
   description:
-    "Human-verified invoice financing with transparent mock-token funding and settlement.",
+    "Wallet-authenticated invoice financing for SMEs and investors. Human verification, transparent funding and traceable settlement.",
 };
+async function ConfiguredProviders({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const network = await browserNetwork().catch(() => null);
+  return (
+    <ApplicationProviders network={network}>{children}</ApplicationProviders>
+  );
+}
 export default function RootLayout({
   children,
 }: {
@@ -12,7 +25,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <Suspense
+          fallback={<div className="loading-state">Loading PactPay…</div>}
+        >
+          <ConfiguredProviders>{children}</ConfiguredProviders>
+        </Suspense>
+      </body>
     </html>
   );
 }

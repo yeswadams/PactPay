@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useConnection, usePublicClient, useSendTransaction } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
 import { BaseError, type Address, type Hash, type Hex } from "viem";
@@ -16,7 +16,9 @@ export function useTransaction(network: NetworkConfig) {
   const [error, setError] = useState("");
   const [hash, setHash] = useState<Hash>();
   const [busy, setBusy] = useState(false);
+  const active = useRef(false);
   async function execute(to: Address, data: Hex, index = true) {
+    if (active.current) return;
     setError("");
     setHash(undefined);
     if (!address || !client) {
@@ -27,6 +29,7 @@ export function useTransaction(network: NetworkConfig) {
       setError("Switch to the configured network first");
       return;
     }
+    active.current = true;
     setBusy(true);
     setPhase("Checking transaction…");
     try {
@@ -49,14 +52,21 @@ export function useTransaction(network: NetworkConfig) {
         confirmations: network.confirmations,
         timeout: 120_000,
       });
-      if (receipt.status !== "success") throw new Error("Transaction reverted");
+      if (receipt.status !== "success") {
+        setPhase("Reverted");
+        throw new Error(
+          "The transaction reverted. Your contribution was not recorded.",
+        );
+      }
       setPhase("Confirmed on-chain");
       if (index) {
+        setPhase("Confirmed · synchronizing with your workspace");
         try {
-          await api("investments", {
+          await api("transactions/verify", {
             method: "POST",
             body: JSON.stringify({ hash: tx, wallet: address }),
           });
+          setPhase("Confirmed and synchronized");
         } catch {
           setPhase("Confirmed on-chain · history update pending");
         }
@@ -72,6 +82,7 @@ export function useTransaction(network: NetworkConfig) {
             : "Wallet request failed",
       );
     } finally {
+      active.current = false;
       setBusy(false);
     }
   }

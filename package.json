@@ -18,7 +18,9 @@
     "web3:sync": "node --env-file-if-exists=.env.local packages/blockchain/scripts/sync.ts",
     "web3:demo": "node --env-file-if-exists=.env.local packages/blockchain/scripts/demo.ts",
     "demo:local": "node scripts/demo-local.mjs",
-    "check": "nx run-many -t lint typecheck test build"
+    "check": "nx run-many -t lint typecheck test build",
+    "admin:grant": "node --env-file-if-exists=.env.local apps/web/scripts/grant-operator.ts",
+    "demo:operator": "node --env-file=.env.demo.local apps/web/scripts/enable-local-operator.ts"
   },
   "keywords": [],
   "author": "",

@@ -1,13 +1,23 @@
 import { handler, ok, parseBody, ApiError } from "@/server/http";
 import { requireUser } from "@/server/auth";
-import { createInvoice, listInvoices, listInvestorCatalog } from "@/server/services/invoices";
+import {
+  createInvoice,
+  listInvoices,
+  listInvestorCatalog,
+} from "@/server/services/invoices";
 import { createInvoiceSchema } from "@/server/validation";
 import type { schema } from "@pactpay/database";
 
 type InvoiceStatus = (typeof schema.invoices.$inferSelect)["status"];
 export type { InvoiceStatus };
 
-const STATUS_VALUES: InvoiceStatus[] = ["submitted", "confirmed", "rejected", "funded", "settled"];
+const STATUS_VALUES: InvoiceStatus[] = [
+  "submitted",
+  "confirmed",
+  "rejected",
+  "funded",
+  "settled",
+];
 
 function statusFromQuery(request: Request): InvoiceStatus | undefined {
   const statusParam = new URL(request.url).searchParams.get("status");

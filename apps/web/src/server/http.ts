@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { AppError, failure as applicationFailure } from "./application/http";
+import { formatKes } from "../lib/domain";
 
 export class ApiError extends Error {
   status: number;
   issues?: { path: string; message: string }[];
 
-  constructor(status: number, message: string, issues?: { path: string; message: string }[]) {
+  constructor(
+    status: number,
+    message: string,
+    issues?: { path: string; message: string }[],
+  ) {
     super(message);
     this.status = status;
     this.issues = issues;
@@ -19,13 +25,14 @@ export function ok<T>(data: T, status = 200) {
 
 /** Standard error envelope: `{ ok: false, error: { message, issues? } }`. */
 export function fail(error: unknown) {
+  if (error instanceof AppError) return applicationFailure(error);
   if (error instanceof ApiError) {
     return NextResponse.json(
       { ok: false, error: { message: error.message, issues: error.issues } },
       { status: error.status },
     );
   }
-  console.error("[api] unexpected error", error);
+  console.error("[api] unexpected error", error instanceof Error ? error.name : "Unknown");
   return NextResponse.json(
     { ok: false, error: { message: "Unexpected server error" } },
     { status: 500 },
@@ -45,10 +52,17 @@ export function handler<Args extends unknown[]>(
   };
 }
 
-export function parseBody<T extends z.ZodTypeAny>(schema: T, body: unknown): z.output<T> {
+export function parseBody<T extends z.ZodTypeAny>(
+  schema: T,
+  body: unknown,
+): z.output<T> {
   const result = schema.safeParse(body);
   if (!result.success) {
-    throw new ApiError(400, "Invalid request payload", normalizeIssues(result.error));
+    throw new ApiError(
+      400,
+      "Invalid request payload",
+      normalizeIssues(result.error),
+    );
   }
   return result.data;
 }
@@ -61,9 +75,4 @@ export function normalizeIssues(error: z.ZodError) {
 }
 
 /** KES cents -> readable string, e.g. 50000000 -> "KES 500,000.00". */
-export function formatKesCents(cents: number): string {
-  return `KES ${(cents / 100).toLocaleString("en-KE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
+export function formatKesCents(cents: number): string { return formatKes(cents); }

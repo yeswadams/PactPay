@@ -1,12 +1,11 @@
-import { createDb } from "@pactpay/database";
-
-const url = process.env.DATABASE_URL;
-
-if (!url) {
-	throw new Error("DATABASE_URL must be set in apps/web/.env or the environment");
-}
-
-/** Shared Drizzle + postgres-js client for route handlers and server actions. */
-export const db = createDb(url);
-
-export { db as database, url as databaseUrl };
+import { db as applicationDatabase } from "./application/repository.ts";
+// Lazy connection: builds never require a running database or deployment secrets.
+export const db = new Proxy({} as ReturnType<typeof applicationDatabase>, {
+  get(_target, key) {
+    const connection = applicationDatabase();
+    const value = Reflect.get(connection, key);
+    return typeof value === "function" ? value.bind(connection) : value;
+  },
+});
+export { db as database };
+export const databaseUrl = process.env.DATABASE_URL;
