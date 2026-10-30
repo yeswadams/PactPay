@@ -1,0 +1,10 @@
+{
+  "name": "contracts",
+  "projectType": "library",
+  "targets": {
+    "build": { "command": "forge build --root packages/contracts", "outputs": ["{projectRoot}/out"], "inputs": ["default", "{workspaceRoot}/pnpm-lock.yaml"] },
+    "test": { "command": "forge test --root packages/contracts -vvv", "cache": false },
+    "lint": { "command": "forge fmt --check --root packages/contracts" },
+    "coverage": { "command": "forge coverage --root packages/contracts", "cache": false }
+  }
+}

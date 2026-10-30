@@ -9,3 +9,12 @@ dist/
 .freebuff/*
 .freebuff
 
+packages/contracts/out/
+packages/contracts/cache/
+packages/contracts/broadcast/
+packages/contracts/deployments/
+packages/blockchain/deployments/
+*.tsbuildinfo
+coverage/
+.env.*
+!.env.example
