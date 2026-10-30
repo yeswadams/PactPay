@@ -1,152 +1,216 @@
 import {
   pgTable,
-  text,
-  timestamp,
+  pgEnum,
   uuid,
-  numeric,
-  jsonb,
+  text,
   integer,
   boolean,
-  uniqueIndex,
+  timestamp,
+  jsonb,
+  customType,
+  index,
+  unique,
 } from "drizzle-orm/pg-core";
 
-export type OfferTerms = {
-  token: string;
-  beneficiary: string;
-  treasury: string;
-  target: string;
-  repayment: string;
-  fee: string;
-  fundingDeadline: string;
-  maturity: string;
-};
-const createdAt = () =>
-  timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
-const amount = (name: string) =>
-  numeric(name, { precision: 78, scale: 0 }).notNull();
+/**
+ * Money is always stored as integer KES cents to avoid float rounding.
+ * A face value of KES 500,000 is stored as 50_000_000 (cents).
+ */
+
+/** Raw document bytes, stored in Postgres for this dev prototype only. */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
+export const userRole = pgEnum("user_role", ["sme", "reviewer", "investor"]);
+
+export const invoiceStatus = pgEnum("invoice_status", [
+  "submitted",
+  "confirmed",
+  "rejected",
+  "funded",
+  "settled",
+]);
+
+export const documentKind = pgEnum("document_kind", [
+  "purchase_order",
+  "contract",
+  "delivery_record",
+  "other",
+]);
+
+export const reviewDecision = pgEnum("review_decision", [
+  "confirmed",
+  "rejected",
+]);
+
 export const users = pgTable("users", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  externalId: text("external_id").notNull().unique(),
-  role: text("role").notNull(),
-  createdAt: createdAt(),
-});
-export const invoices = pgTable("invoices", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  ownerId: uuid("owner_id")
-    .references(() => users.id)
-    .notNull(),
-  canonicalReference: text("canonical_reference").notNull().unique(),
-  commitment: text("commitment").notNull().unique(),
-  salt: text("salt").notNull(),
-  faceValueKesMinor: amount("face_value_kes_minor"),
-  documentReference: text("document_reference").notNull(),
-  status: text("status").default("SUBMITTED").notNull(),
-  verificationEvidence: text("verification_evidence"),
-  verifiedBy: text("verified_by"),
-  terms: jsonb("terms").$type<OfferTerms>(),
-  createdAt: createdAt(),
-});
-export const auditLogs = pgTable("audit_logs", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  actor: text("actor").notNull(),
-  action: text("action").notNull(),
-  subject: text("subject").notNull(),
-  details: jsonb("details").notNull(),
-  createdAt: createdAt(),
-});
-export const contractDeployments = pgTable("contract_deployments", {
-  id: text("id").primaryKey(),
-  chainId: integer("chain_id").notNull(),
-  address: text("address").notNull(),
-  manifest: jsonb("manifest").notNull(),
-  createdAt: createdAt(),
-});
-export const invoiceOnchainRecords = pgTable(
-  "invoice_onchain_records",
-  {
-    id: text("id").primaryKey(),
-    deploymentId: text("deployment_id")
-      .references(() => contractDeployments.id)
-      .notNull(),
-    commitment: text("commitment").notNull(),
-    state: integer("state").notNull(),
-    snapshot: jsonb("snapshot").notNull(),
-    blockNumber: amount("block_number"),
-    blockHash: text("block_hash").notNull(),
-  },
-  (t) => [
-    uniqueIndex("onchain_invoice_unique").on(t.deploymentId, t.commitment),
-  ],
-);
-export const investorPositions = pgTable(
-  "investor_positions",
-  {
-    id: text("id").primaryKey(),
-    recordId: text("record_id")
-      .references(() => invoiceOnchainRecords.id, { onDelete: "cascade" })
-      .notNull(),
-    wallet: text("wallet").notNull(),
-    contribution: amount("contribution"),
-    claimable: amount("claimable"),
-    refunded: boolean("refunded").notNull(),
-    claimed: boolean("claimed").notNull(),
-  },
-  (t) => [uniqueIndex("investor_position_unique").on(t.recordId, t.wallet)],
-);
-export const blockchainTransactions = pgTable("blockchain_transactions", {
-  id: text("id").primaryKey(),
-  deploymentId: text("deployment_id")
-    .references(() => contractDeployments.id)
-    .notNull(),
-  hash: text("hash").notNull(),
-  blockNumber: amount("block_number"),
-  blockHash: text("block_hash").notNull(),
-  status: text("status").notNull(),
-  sender: text("sender"),
-  createdAt: createdAt(),
-});
-export const blockchainEvents = pgTable("blockchain_events", {
-  id: text("id").primaryKey(),
-  deploymentId: text("deployment_id")
-    .references(() => contractDeployments.id)
-    .notNull(),
-  transactionHash: text("transaction_hash").notNull(),
-  logIndex: integer("log_index").notNull(),
-  blockNumber: amount("block_number"),
-  blockHash: text("block_hash").notNull(),
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
-  args: jsonb("args").notNull(),
+  role: userRole("role").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
-export const blockchainEventCheckpoints = pgTable(
-  "blockchain_event_checkpoints",
+
+export const sessions = pgTable(
+  "sessions",
   {
-    id: text("id").primaryKey(),
-    blockNumber: amount("block_number"),
-    blockHash: text("block_hash").notNull(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    token: text("token").notNull().unique(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
+  (t) => [index("sessions_user_id_idx").on(t.userId)],
 );
-export const settlementReconciliations = pgTable(
-  "settlement_reconciliations",
+
+export const businesses = pgTable("businesses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: uuid("owner_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" })
+    .unique(),
+  name: text("name").notNull(),
+  registrationNumber: text("registration_number").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const invoices = pgTable(
+  "invoices",
   {
-    id: uuid("id").defaultRandom().primaryKey(),
-    invoiceId: uuid("invoice_id")
-      .references(() => invoices.id)
-      .notNull(),
-    deploymentId: text("deployment_id")
-      .references(() => contractDeployments.id)
-      .notNull(),
-    evidenceReference: text("evidence_reference").notNull().unique(),
-    evidenceCommitment: text("evidence_commitment").notNull().unique(),
-    amount: amount("amount"),
-    operator: text("operator").notNull(),
-    status: text("status").default("PREPARED").notNull(),
-    transactionHash: text("transaction_hash"),
-    createdAt: createdAt(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
+    invoiceNumber: text("invoice_number").notNull(),
+    customerName: text("customer_name").notNull(),
+    customerEmail: text("customer_email"),
+    customerContact: text("customer_contact"),
+    description: text("description").notNull(),
+    /** Face value owed by the customer, in KES cents. */
+    faceValueCents: integer("face_value_cents").notNull(),
+    /** Cash the SME wants today, in KES cents. Must be < faceValueCents. */
+    advanceCents: integer("advance_cents").notNull(),
+    /** Percentage (in basis points) of the spread that goes to the platform at settlement. */
+    platformFeeBps: integer("platform_fee_bps").notNull().default(2000),
+    dueDate: timestamp("due_date", { withTimezone: true }).notNull(),
+    /** Reviewer confirms the customer acknowledged the invoice and delivery. */
+    customerVerified: boolean("customer_verified").notNull().default(false),
+    status: invoiceStatus("status").notNull().default("submitted"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex("one_reconciliation_per_invoice_deployment").on(
-      t.invoiceId,
-      t.deploymentId,
-    ),
+    unique("invoices_business_number_unique").on(t.businessId, t.invoiceNumber),
+    index("invoices_status_idx").on(t.status),
+    index("invoices_business_id_idx").on(t.businessId),
   ],
 );
+
+export const invoiceDocuments = pgTable(
+  "invoice_documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    kind: documentKind("kind").notNull().default("other"),
+    fileName: text("file_name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    /** SHA-256 hex of the file — key detail on chain, never the content. */
+    sha256: text("sha256").notNull(),
+    content: bytea("content").notNull(),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("invoice_documents_invoice_id_idx").on(t.invoiceId)],
+);
+
+export const reviews = pgTable(
+  "reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    reviewerId: uuid("reviewer_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    decision: reviewDecision("decision").notNull(),
+    /** Human-readable explanation shown to the SME and investors. */
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("reviews_invoice_id_idx").on(t.invoiceId)],
+);
+
+export const investments = pgTable(
+  "investments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    investorId: uuid("investor_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Simulated advance paid to the SME, in KES cents. */
+    amountCents: integer("amount_cents").notNull(),
+    txHash: text("tx_hash"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("investments_invoice_id_idx").on(t.invoiceId)],
+);
+
+export const settlements = pgTable("settlements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  invoiceId: uuid("invoice_id")
+    .notNull()
+    .references(() => invoices.id, { onDelete: "cascade" })
+    .unique(),
+  /** Amount actually paid by the customer, in KES cents. */
+  paidCents: integer("paid_cents").notNull(),
+  investorPayoutCents: integer("investor_payout_cents").notNull(),
+  platformFeeCents: integer("platform_fee_cents").notNull(),
+  latePayment: boolean("late_payment").notNull().default(false),
+  txHash: text("tx_hash"),
+  settledAt: timestamp("settled_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Append-only audit trail. Every state change writes a plain-language event so
+ * SMEs and investors can follow the same history a reviewer sees.
+ */
+export const events = pgTable(
+  "events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+    /** Machine-readable event type, e.g. "invoice.submitted". */
+    type: text("type").notNull(),
+    /** Human-readable explanation shown in the UI. */
+    message: text("message").notNull(),
+    /** Testnet transaction hash once the contract integration lands; null until then. */
+    txHash: text("tx_hash"),
+    detail: jsonb("detail"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("events_invoice_id_idx").on(t.invoiceId)],
+);
+
+export type User = typeof users.$inferSelect;
+export type Business = typeof businesses.$inferSelect;
+export type Invoice = typeof invoices.$inferSelect;
+export type InvoiceDocument = typeof invoiceDocuments.$inferSelect;
+export type Review = typeof reviews.$inferSelect;
+export type Investment = typeof investments.$inferSelect;
+export type Settlement = typeof settlements.$inferSelect;
+export type Event = typeof events.$inferSelect;
