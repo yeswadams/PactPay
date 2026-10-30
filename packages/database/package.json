@@ -9,8 +9,9 @@
   },
   "scripts": {
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:migrate": "node src/migrate.ts",
+    "db:studio": "drizzle-kit studio",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.4",
@@ -19,6 +20,7 @@
   "devDependencies": {
     "dotenv": "^18.0.9",
     "drizzle-kit": "^0.31.11",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@types/node": "^24.0.0"
   }
 }
