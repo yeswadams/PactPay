@@ -1,0 +1,29 @@
+{
+  "name": "@pactpay/blockchain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./abi": "./src/abi/index.ts",
+    "./config": "./src/config/index.ts",
+    "./sync": "./src/clients/sync.ts"
+  },
+  "scripts": {
+    "generate": "node scripts/generate.mjs",
+    "deploy:local": "node scripts/deploy-local.ts",
+    "demo": "node scripts/demo.ts",
+    "sync": "node scripts/sync.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --test-isolation=none test/*.test.ts"
+  },
+  "dependencies": {
+    "viem": "^2.57.13",
+    "zod": "^4.6.7",
+    "@pactpay/database": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/node": "^24.0.0"
+  }
+}

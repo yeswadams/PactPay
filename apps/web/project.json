@@ -1,0 +1,7 @@
+{
+  "name": "web",
+  "targets": {
+    "build": { "dependsOn": ["blockchain:generate"] },
+    "typecheck": { "dependsOn": ["blockchain:generate"] }
+  }
+}

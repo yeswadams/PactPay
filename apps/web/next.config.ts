@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  transpilePackages: ["@pactpay/blockchain", "@pactpay/database"],
+  outputFileTracingIncludes: {
+    "/api/v1/*": ["../../packages/blockchain/deployments/*.json"],
+  },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

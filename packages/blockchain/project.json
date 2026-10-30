@@ -1,0 +1,35 @@
+{
+  "name": "blockchain",
+  "projectType": "library",
+  "implicitDependencies": ["contracts", "@pactpay/database"],
+  "targets": {
+    "generate": {
+      "command": "node packages/blockchain/scripts/generate.mjs",
+      "dependsOn": ["contracts:build"],
+      "outputs": ["{projectRoot}/src/abi/index.ts"],
+      "cache": true,
+      "inputs": ["default", "^default"]
+    },
+    "build": {
+      "command": "node packages/blockchain/scripts/generate.mjs",
+      "dependsOn": ["contracts:build"],
+      "outputs": ["{projectRoot}/src/abi/index.ts"]
+    },
+    "typecheck": {
+      "command": "tsc --noEmit -p packages/blockchain/tsconfig.json",
+      "dependsOn": ["generate"]
+    },
+    "test": {
+      "command": "node --test --test-isolation=none packages/blockchain/test/*.test.ts",
+      "dependsOn": ["generate"]
+    },
+    "sync": {
+      "command": "node packages/blockchain/scripts/sync.ts",
+      "cache": false
+    },
+    "demo": {
+      "command": "node packages/blockchain/scripts/demo.ts",
+      "cache": false
+    }
+  }
+}

@@ -1,37 +1,41 @@
-
 name: PactPay CI
-
 on:
   pull_request:
   push:
     branches: [main]
-
+permissions:
+  contents: read
 jobs:
   quality:
     runs-on: ubuntu-latest
+    env:
+      NX_DAEMON: "false"
+      NX_ISOLATE_PLUGINS: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec nx run web:lint
-      - run: pnpm exec nx run web:build
-
-  contracts:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
       - uses: foundry-rs/foundry-toolchain@v1
-
-      - name: Test smart contracts
-        working-directory: packages/contracts
-        run: forge test -vvv
+        with:
+          version: v1.8.5
+      - run: pnpm install --frozen-lockfile
+      - name: Format, compile, fuzz, invariants, ABI, lint, types and application build
+        run: pnpm exec nx run-many -t lint typecheck test build --output-style=static
+      - name: Financial branch coverage
+        run: forge coverage --root packages/contracts
+      - name: Reproducible local API / database / blockchain integration
+        run: pnpm demo:local --check
+      - name: Confirmed reorganization recovery
+        env:
+          DATABASE_URL: postgresql://pactpay:pactpay_dev@127.0.0.1:5432/pactpay
+        run: |
+          anvil --host 127.0.0.1 --port 8545 --silent &
+          ANVIL_PID=$!
+          trap 'kill "$ANVIL_PID"' EXIT
+          sleep 1
+          node packages/blockchain/scripts/deploy-local.ts
+          node packages/blockchain/scripts/test-reorg.ts
